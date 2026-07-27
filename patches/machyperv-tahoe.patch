@@ -1,0 +1,174 @@
+diff --git a/BuildScripts/package.tool b/BuildScripts/package.tool
+index 6700cdb..9d05196 100755
+--- a/BuildScripts/package.tool
++++ b/BuildScripts/package.tool
+@@ -41,7 +41,7 @@ if [[ -f "../hvfilecopyd-tiger" ]]; then
+   cp ../hvfilecopyd-tiger Tools/ || exit 1
+ fi
+ 
+-cp "${PROJECT_DIR}/Tools/Daemons/hvfilecopyd/fish.goldfish64.hvfilecopyd.plist" Tools/fish.goldfish64.hvshutdownd.plist || exit 1
++cp "${PROJECT_DIR}/Tools/Daemons/hvshutdownd/fish.goldfish64.hvshutdownd.plist" Tools/fish.goldfish64.hvshutdownd.plist || exit 1
+ if [[ -f "../hvshutdownd-universal" ]] && [[ "../hvshutdownd-universal" -nt "../hvshutdownd" ]]; then
+   cp ../hvshutdownd-universal Tools/hvshutdownd || exit 1
+ else
+@@ -51,7 +51,7 @@ if [[ -f "../hvshutdownd-tiger" ]]; then
+   cp ../hvshutdownd-tiger Tools/ || exit 1
+ fi
+ 
+-cp "${PROJECT_DIR}/Tools/Daemons/hvfilecopyd/fish.goldfish64.hvfilecopyd.plist" Tools/fish.goldfish64.hvtimesyncd.plist || exit 1
++cp "${PROJECT_DIR}/Tools/Daemons/hvtimesyncd/fish.goldfish64.hvtimesyncd.plist" Tools/fish.goldfish64.hvtimesyncd.plist || exit 1
+ if [[ -f "../hvtimesyncd-universal" ]] && [[ "../hvtimesyncd-universal" -nt "../hvtimesyncd" ]]; then
+   cp ../hvtimesyncd-universal Tools/hvtimesyncd || exit 1
+ else
+diff --git a/MacHyperVSupport/GraphicsBridge/HyperVGraphicsBridge.cpp b/MacHyperVSupport/GraphicsBridge/HyperVGraphicsBridge.cpp
+index 4b53c46..fa31d91 100644
+--- a/MacHyperVSupport/GraphicsBridge/HyperVGraphicsBridge.cpp
++++ b/MacHyperVSupport/GraphicsBridge/HyperVGraphicsBridge.cpp
+@@ -74,18 +74,11 @@ bool HyperVGraphicsBridge::start(IOService *provider) {
+   }
+ 
+   //
+-  // Allocate PCI lock and register with root PCI bridge.
++  // Register with root PCI bridge.
+   //
+-  _pciLock = IOSimpleLockAlloc();
+-  if (_pciLock == nullptr) {
+-    HVSYSLOG("Failed to allocate PCI lock");
+-    return false;
+-  }
+-
+   status = hvPCIRoot->registerChildPCIBridge(this, &_pciBusNumber);
+   if (status != kIOReturnSuccess) {
+     HVSYSLOG("Failed to register with root PCI bus instance");
+-    IOSimpleLockFree(_pciLock);
+     return false;
+   }
+ 
+@@ -107,7 +100,6 @@ bool HyperVGraphicsBridge::start(IOService *provider) {
+ 
+   if (!super::start(provider)) {
+     HVSYSLOG("super::start() returned false");
+-    IOSimpleLockFree(_pciLock);
+     return false;
+   }
+ 
+@@ -118,10 +110,6 @@ bool HyperVGraphicsBridge::start(IOService *provider) {
+ void HyperVGraphicsBridge::stop(IOService *provider) {
+   HVDBGLOG("Hyper-V Synthetic Graphics Bridge is stopping");
+ 
+-  if (_pciLock != nullptr) {
+-    IOSimpleLockFree(_pciLock);
+-  }
+-
+   super::stop(provider);
+ }
+ 
+@@ -136,23 +124,21 @@ bool HyperVGraphicsBridge::configure(IOService *provider) {
+ 
+ UInt32 HyperVGraphicsBridge::configRead32(IOPCIAddressSpace space, UInt8 offset) {
+   UInt32 data;
+-  IOInterruptState ints;
+ 
+   if (space.es.deviceNum != 0 || space.es.functionNum != 0) {
+     return 0xFFFFFFFF;
+   }
+ 
+-  ints = IOSimpleLockLockDisableInterrupt(_pciLock);
++  // The synthetic configuration space is private in-memory state. Keeping an
++  // IOSimpleLock across these accesses can deadlock AppleGPUWrangler on Tahoe.
++  // Aligned scalar loads and stores are atomic on the supported x86 platform.
+   data = OSReadLittleInt32(_fakePCIDeviceSpace, offset);
+-  IOSimpleLockUnlockEnableInterrupt(_pciLock, ints);
+ 
+   HVDBGLOG("Read 32-bit value %u from offset 0x%X", data, offset);
+   return data;
+ }
+ 
+ void HyperVGraphicsBridge::configWrite32(IOPCIAddressSpace space, UInt8 offset, UInt32 data) {
+-  IOInterruptState ints;
+-  
+   if (space.es.deviceNum != 0 || space.es.functionNum != 0
+       || (offset > kIOPCIConfigurationOffsetBaseAddress0 && offset <= kIOPCIConfigurationOffsetBaseAddress5)
+       || offset == kIOPCIConfigurationOffsetExpansionROMBase) {
+@@ -168,30 +154,23 @@ void HyperVGraphicsBridge::configWrite32(IOPCIAddressSpace space, UInt8 offset,
+     return;
+   }
+ 
+-  ints = IOSimpleLockLockDisableInterrupt(_pciLock);
+   OSWriteLittleInt32(_fakePCIDeviceSpace, offset, data);
+-  IOSimpleLockUnlockEnableInterrupt(_pciLock, ints);
+ }
+ 
+ UInt16 HyperVGraphicsBridge::configRead16(IOPCIAddressSpace space, UInt8 offset) {
+   UInt16 data;
+-  IOInterruptState ints;
+ 
+   if (space.es.deviceNum != 0 || space.es.functionNum != 0) {
+     return 0xFFFF;
+   }
+ 
+-  ints = IOSimpleLockLockDisableInterrupt(_pciLock);
+   data = OSReadLittleInt16(_fakePCIDeviceSpace, offset);
+-  IOSimpleLockUnlockEnableInterrupt(_pciLock, ints);
+ 
+   HVDBGLOG("Read 16-bit value %u from offset 0x%X", data, offset);
+   return data;
+ }
+ 
+ void HyperVGraphicsBridge::configWrite16(IOPCIAddressSpace space, UInt8 offset, UInt16 data) {
+-  IOInterruptState ints;
+-
+   if (space.es.deviceNum != 0 || space.es.functionNum != 0
+       || (offset >= kIOPCIConfigurationOffsetBaseAddress0 && offset <= kIOPCIConfigurationOffsetBaseAddress5)
+       || offset == kIOPCIConfigurationOffsetExpansionROMBase) {
+@@ -199,30 +178,23 @@ void HyperVGraphicsBridge::configWrite16(IOPCIAddressSpace space, UInt8 offset,
+   }
+   HVDBGLOG("Writing 16-bit value %u to offset 0x%X", data, offset);
+ 
+-  ints = IOSimpleLockLockDisableInterrupt(_pciLock);
+   OSWriteLittleInt16(_fakePCIDeviceSpace, offset, data);
+-  IOSimpleLockUnlockEnableInterrupt(_pciLock, ints);
+ }
+ 
+ UInt8 HyperVGraphicsBridge::configRead8(IOPCIAddressSpace space, UInt8 offset) {
+   UInt8 data;
+-  IOInterruptState ints;
+ 
+   if (space.es.deviceNum != 0 || space.es.functionNum != 0) {
+     return 0xFF;
+   }
+ 
+-  ints = IOSimpleLockLockDisableInterrupt(_pciLock);
+   data = _fakePCIDeviceSpace[offset];
+-  IOSimpleLockUnlockEnableInterrupt(_pciLock, ints);
+ 
+   HVDBGLOG("Read 8-bit value %u from offset 0x%X", data, offset);
+   return data;
+ }
+ 
+ void HyperVGraphicsBridge::configWrite8(IOPCIAddressSpace space, UInt8 offset, UInt8 data) {
+-  IOInterruptState ints;
+-
+   if (space.es.deviceNum != 0 || space.es.functionNum != 0
+       || (offset >= kIOPCIConfigurationOffsetBaseAddress0 && offset <= kIOPCIConfigurationOffsetBaseAddress5)
+       || offset == kIOPCIConfigurationOffsetExpansionROMBase) {
+@@ -230,7 +202,5 @@ void HyperVGraphicsBridge::configWrite8(IOPCIAddressSpace space, UInt8 offset, U
+   }
+   HVDBGLOG("Writing 8-bit value %u to offset 0x%X", data, offset);
+ 
+-  ints = IOSimpleLockLockDisableInterrupt(_pciLock);
+   _fakePCIDeviceSpace[offset] = data;
+-  IOSimpleLockUnlockEnableInterrupt(_pciLock, ints);
+ }
+diff --git a/MacHyperVSupport/GraphicsBridge/HyperVGraphicsBridge.hpp b/MacHyperVSupport/GraphicsBridge/HyperVGraphicsBridge.hpp
+index bff253a..f0e10be 100644
+--- a/MacHyperVSupport/GraphicsBridge/HyperVGraphicsBridge.hpp
++++ b/MacHyperVSupport/GraphicsBridge/HyperVGraphicsBridge.hpp
+@@ -23,7 +23,6 @@ private:
+   //
+   // Fake PCI structures.
+   //
+-  IOSimpleLock      *_pciLock   = nullptr;
+   UInt8             _fakePCIDeviceSpace[256];
+   UInt32            _fbInitialBase    = 0;
+   UInt32            _fbInitialLength  = 0;

@@ -1,0 +1,16 @@
+name: Self-hosted Hyper-V smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  explain:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "A complete boot test requires a physical, self-hosted Windows Hyper-V runner."
+          echo "GitHub-hosted runners cannot provide the required nested Hyper-V environment."
+

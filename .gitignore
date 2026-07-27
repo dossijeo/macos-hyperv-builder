@@ -1,0 +1,15 @@
+.cache/
+artifacts/
+build/
+state/
+*.vhd
+*.vhdx
+*.avhdx
+*.dmg
+*.chunklist
+*.iso
+*.zip
+*.log
+.DS_Store
+Thumbs.db
+
