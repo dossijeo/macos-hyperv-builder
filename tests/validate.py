@@ -13,7 +13,12 @@ assert manifest["vm"]["automaticCheckpoints"] is False
 assert manifest["vm"]["secureBoot"] is False
 for dependency in manifest["dependencies"]:
     assert re.fullmatch(r"[0-9a-f]{64}", dependency["sha256"])
-    assert dependency["url"].startswith("https://github.com/acidanthera/")
+    assert dependency["url"].startswith(
+        (
+            "https://github.com/acidanthera/",
+            "https://github.com/dossijeo/macos-hyperv-builder/releases/",
+        )
+    )
 
 with (root / "config/opencore.template.plist").open("rb") as stream:
     config = plistlib.load(stream)
@@ -52,4 +57,3 @@ for file in root.rglob("*"):
         raise AssertionError(f"Forbidden image committed: {file}")
 
 print("All repository validations passed.")
-

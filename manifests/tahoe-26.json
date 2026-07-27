@@ -47,7 +47,12 @@
       "version": "0.9.9",
       "url": "https://github.com/acidanthera/MacHyperVSupport/releases/download/0.9.9/MacHyperVSupport-0.9.9-RELEASE.zip",
       "sha256": "1adbe0baf92ce097585828dd877177b55f5890d5280f9cbe1da8383f842784f9"
+    },
+    {
+      "name": "TahoeHyperVKexts",
+      "version": "0.1.0",
+      "url": "https://github.com/dossijeo/macos-hyperv-builder/releases/download/v0.1.0/tahoe-hyperv-kexts-0.1.0.zip",
+      "sha256": "8b56ee40d413b44828dda36576677433a3d564c8088274025e0de5b42e17bbd4"
     }
   ]
 }
-

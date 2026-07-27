@@ -19,6 +19,8 @@ virtual disk, Apple credential, SSH key or reusable SMBIOS identity.
 - Hyper-V settings: Generation 2, Secure Boot off, fixed memory, clean
   shutdown, and automatic checkpoints disabled.
 - The Tahoe graphics deadlock patch for MacHyperVSupport.
+- A checksum-pinned release of the two patched BSD-licensed kexts, so a new
+  Windows host does not need an existing Mac/Xcode installation to bootstrap.
 - The packaging fix that installs the real `hvshutdownd` and
   `hvtimesyncd` plists instead of duplicate `hvfilecopyd` plists.
 - A corrected shutdown LaunchDaemon and guest installer.

@@ -12,5 +12,8 @@ The Tahoe compatibility patch in this repository modifies
 MacHyperVSupport-derived source and is distributed under the same
 BSD-3-Clause terms.
 
-macOS and Xcode are Apple software and are not distributed by this project.
+Release assets named `tahoe-hyperv-kexts-*.zip` contain only the two
+MacHyperVSupport-derived kext bundles built from the committed patch. They do
+not contain Apple software.
 
+macOS and Xcode are Apple software and are not distributed by this project.
