@@ -62,11 +62,10 @@ jobs:
         working-directory: build/MacHyperVSupport
         run: |
           xcodebuild -project MacHyperVSupport.xcodeproj -target MacHyperVSupportMonterey -configuration Release ARCHS=x86_64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO clean build
-          xcodebuild -project MacHyperVSupport.xcodeproj -target MacHyperVFramebuffer -configuration Release ARCHS=x86_64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO clean build
+          xcodebuild -project MacHyperVSupport.xcodeproj -target MacHyperVFramebuffer -configuration Release ARCHS=x86_64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build
           ditto -c -k --keepParent build/Release/MacHyperVSupportMonterey.kext patched-MacHyperVSupportMonterey.zip
           ditto -c -k --keepParent build/Release/MacHyperVFramebuffer.kext patched-MacHyperVFramebuffer.zip
       - uses: actions/upload-artifact@v4
         with:
           name: tahoe-hyperv-kexts
           path: build/MacHyperVSupport/patched-*.zip
-
