@@ -12,8 +12,8 @@ jobs:
   repository:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Validate manifests, plists and repository contents
@@ -41,12 +41,12 @@ jobs:
   patched-driver:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Checkout MacHyperVSupport 0.9.9
         run: git clone --depth=1 --branch 0.9.9 https://github.com/acidanthera/MacHyperVSupport.git build/MacHyperVSupport
       - name: Apply Tahoe patches
         run: git -C build/MacHyperVSupport apply "$GITHUB_WORKSPACE/patches/machyperv-tahoe.patch"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: acidanthera/MacKernelSDK
           path: build/MacHyperVSupport/MacKernelSDK
@@ -65,7 +65,7 @@ jobs:
           xcodebuild -project MacHyperVSupport.xcodeproj -target MacHyperVFramebuffer -configuration Release ARCHS=x86_64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build
           ditto -c -k --keepParent build/Release/MacHyperVSupportMonterey.kext patched-MacHyperVSupportMonterey.zip
           ditto -c -k --keepParent build/Release/MacHyperVFramebuffer.kext patched-MacHyperVFramebuffer.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tahoe-hyperv-kexts
           path: build/MacHyperVSupport/patched-*.zip
