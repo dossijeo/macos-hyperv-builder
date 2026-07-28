@@ -102,12 +102,13 @@ jobs:
             git -C build/skiko apply "$GITHUB_WORKSPACE/$patch"
           done
           raster_repo="$HOME/.local/share/macos-hyperv-builder/raster-m2/repository"
+          deploy_version="${SKIKO_RASTER_VERSION%-SNAPSHOT}"
           (
             cd build/skiko/skiko
             ./gradlew \
               publishIosX64PublicationToMavenLocal \
               publishKotlinMultiplatformPublicationToMavenLocal \
-              -Pdeploy.version="$SKIKO_RASTER_VERSION" \
+              -Pdeploy.version="$deploy_version" \
               -Pskiko.awt.enabled=false \
               -Pskiko.js.enabled=false \
               -Pskiko.wasm.enabled=false \

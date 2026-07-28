@@ -107,6 +107,11 @@ assert "mediaanalysisd" in tuning
 workflow = (root / ".github/workflows/validate.yml").read_text()
 assert '$HOME/.m2/repository/org/jetbrains/skiko/$artifact/' in workflow
 assert 'cp -R "$source_dir/." "$target_dir/"' in workflow
+assert 'deploy_version="${SKIKO_RASTER_VERSION%-SNAPSHOT}"' in workflow
+
+provision = (root / "guest/provision-compose-ios-raster.sh").read_text()
+assert 'local deploy_version="${SKIKO_RASTER_VERSION%-SNAPSHOT}"' in provision
+assert '-Pdeploy.version="${deploy_version}"' in provision
 
 for file in root.rglob("*"):
     if not file.is_file() or ".git" in file.parts:

@@ -260,6 +260,7 @@ checkout_skiko() {
 
 build_skiko_raster_artifact() {
     local artifact="${raster_repository}/org/jetbrains/skiko/skiko-iosx64/${SKIKO_RASTER_VERSION}/skiko-iosx64-${SKIKO_RASTER_VERSION}.klib"
+    local deploy_version="${SKIKO_RASTER_VERSION%-SNAPSHOT}"
     if [[ -f "${artifact}" && "${HYPERV_RASTER_REBUILD:-0}" != 1 ]]; then
         echo "Using existing patched Skiko artifact: ${artifact}"
         return
@@ -271,7 +272,7 @@ build_skiko_raster_artifact() {
             publishIosX64PublicationToMavenLocal \
             publishKotlinMultiplatformPublicationToMavenLocal \
             -Dmaven.repo.local="${raster_repository}" \
-            -Pdeploy.version="${SKIKO_RASTER_VERSION}" \
+            -Pdeploy.version="${deploy_version}" \
             -Pskiko.awt.enabled=false \
             -Pskiko.js.enabled=false \
             -Pskiko.wasm.enabled=false \
