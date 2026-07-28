@@ -85,7 +85,8 @@ The provisioner is idempotent and performs the following actions:
 - downloads the checksum-pinned Intel Temurin 17 JDK;
 - completes Xcode first-launch setup when required;
 - downloads an iOS Simulator runtime only if none is installed;
-- creates a `HyperV-Raster-iOS` device on the newest installed iOS runtime;
+- creates a `HyperV-Raster-iOS` device, preferring an installed iOS 18 runtime
+  over the substantially heavier iOS 26 runtime;
 - checks out Compose Multiplatform Core and Skiko at pinned commits;
 - applies and compiles both CPU-raster patches for `uikitX64`;
 - creates an isolated local Maven repository under
@@ -101,6 +102,33 @@ case, pass the repository's
 The tested configuration is Xcode 26.6 with iOS 18.3 and iOS 26.5 runtimes.
 Both runtimes render a real Compose application and the minimal raster probe
 without a Metal device.
+
+### Starting and stopping the simulator
+
+On a no-Metal Hyper-V guest, iOS 26 can leave `WindowServer` saturated after
+its virtual display closes. Use the supplied controller instead of raw
+`simctl shutdown all`:
+
+```bash
+./hyperv-simulator.sh boot
+# Build, install, launch and capture with simctl or Xcode.
+./hyperv-simulator.sh shutdown
+```
+
+Shutdown is ordered, waits for the device to stop and samples `WindowServer`.
+It also terminates the residual CoreSimulator service and trampoline processes
+that otherwise keep consuming CPU after the device reports `Shutdown`.
+If the known saturation loop persists, the controller restarts the graphical
+login session before the VM becomes unresponsive. That recovery logs out the
+desktop user but does not reboot macOS or interrupt SSH. Set
+`HYPERV_WINDOWSERVER_RECOVERY=0` to report the condition without recovery.
+
+The default provisioned device uses the newest installed iOS 18 runtime when
+available. Override the preferred major during provisioning with
+`HYPERV_SIMULATOR_RUNTIME_MAJOR`; iOS 26 remains usable for short automated
+captures but is not the recommended interactive runtime on this framebuffer.
+The first boot of any newly created device performs migration and indexing and
+can remain CPU-heavy for several minutes.
 
 ### Scope and limitations
 

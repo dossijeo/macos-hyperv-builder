@@ -36,6 +36,8 @@ Environment:
   HYPERV_COMPOSE_SOURCE    Use an existing Compose source checkout.
   HYPERV_SKIKO_SOURCE      Use an existing Skiko source checkout.
   HYPERV_RASTER_REBUILD=1  Force rebuilding existing patched artifacts.
+  HYPERV_SIMULATOR_RUNTIME_MAJOR
+                           Preferred installed iOS runtime major (default: 18).
 EOF
 }
 
@@ -171,15 +173,23 @@ prepare_xcode_runtime() {
     fi
 
     local runtime_id
+    local preferred_major="${HYPERV_SIMULATOR_RUNTIME_MAJOR:-18}"
     runtime_id="$(
         xcrun simctl list runtimes -j |
-            ruby -rjson -e '
+            PREFERRED_MAJOR="${preferred_major}" ruby -rjson -e '
                 runtimes = JSON.parse(STDIN.read).fetch("runtimes").select {
                   |r| r["platform"] == "iOS" && r["isAvailable"] != false
                 }
                 abort "No available iOS runtime" if runtimes.empty?
-                puts runtimes.max_by { |r| r["version"].split(".").map(&:to_i) }
-                             .fetch("identifier")
+                preferred = ENV.fetch("PREFERRED_MAJOR")
+                candidates = runtimes.select {
+                  |r| r["version"].split(".").first == preferred
+                }
+                selected = (candidates.empty? ? runtimes : candidates).max_by {
+                  |r| r["version"].split(".").map(&:to_i)
+                }
+                warn "Using iOS #{selected.fetch("version")} Simulator runtime."
+                puts selected.fetch("identifier")
             '
     )"
 

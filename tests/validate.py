@@ -88,6 +88,14 @@ assert "exclusiveContent" in gradle_init
 assert 'includeModule("org.jetbrains.compose.ui", "ui-uikitx64")' in gradle_init
 assert 'includeGroup("org.jetbrains.skiko")' in gradle_init
 
+simulator_control = (root / "guest/hyperv-simulator.sh").read_text()
+assert "xcrun simctl bootstatus" in simulator_control
+assert "recover_runaway_windowserver" in simulator_control
+assert "sudo killall -9 WindowServer" in simulator_control
+assert "CoreSimulator.CoreSimulatorService" in simulator_control
+assert "[S]imulatorTrampoline" in simulator_control
+assert "HYPERV_WINDOWSERVER_RECOVERY" in simulator_control
+
 for file in root.rglob("*"):
     if not file.is_file() or ".git" in file.parts:
         continue
