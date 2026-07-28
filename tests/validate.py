@@ -104,6 +104,10 @@ assert "com.apple.ReportCrash.Root" in tuning
 assert "com.apple.diagnosticd" in tuning
 assert "mediaanalysisd" in tuning
 
+workflow = (root / ".github/workflows/validate.yml").read_text()
+assert '$HOME/.m2/repository/org/jetbrains/skiko/$artifact/' in workflow
+assert 'cp -R "$source_dir/." "$target_dir/"' in workflow
+
 for file in root.rglob("*"):
     if not file.is_file() or ".git" in file.parts:
         continue

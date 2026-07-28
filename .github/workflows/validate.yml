@@ -107,7 +107,6 @@ jobs:
             ./gradlew \
               publishIosX64PublicationToMavenLocal \
               publishKotlinMultiplatformPublicationToMavenLocal \
-              -Dmaven.repo.local="$raster_repo" \
               -Pdeploy.version="$SKIKO_RASTER_VERSION" \
               -Pskiko.awt.enabled=false \
               -Pskiko.js.enabled=false \
@@ -122,6 +121,17 @@ jobs:
               -Pskiko.native.ios.x64.enabled=true \
               --console=plain
           )
+          # GitHub's Gradle/Maven environment ignores maven.repo.local for
+          # PublishToMavenLocal. Copy only the two required publications from
+          # the standard local repository into the isolated raster repository.
+          for artifact in skiko skiko-iosx64
+          do
+            source_dir="$HOME/.m2/repository/org/jetbrains/skiko/$artifact/$SKIKO_RASTER_VERSION"
+            target_dir="$raster_repo/org/jetbrains/skiko/$artifact/$SKIKO_RASTER_VERSION"
+            test -d "$source_dir"
+            mkdir -p "$target_dir"
+            cp -R "$source_dir/." "$target_dir/"
+          done
       - name: Apply UIKit CPU-raster patch
         run: |
           git -C build/compose apply --check \
