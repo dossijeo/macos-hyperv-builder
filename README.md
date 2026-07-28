@@ -147,10 +147,15 @@ can remain CPU-heavy for several minutes.
 - Animated desktop wallpaper and background visual analysis consume
   significant CPU without Metal. Use a static wallpaper; the optional tuning
   script disables `mediaanalysisd` for the host user and booted simulators.
-  It also disables the per-user `ReportCrash` agent because no-Metal simulator
-  extensions can otherwise crash-loop and saturate a CPU. Existing `.ips`
-  reports remain intact; restore the agent with
-  `launchctl enable gui/$(id -u)/com.apple.ReportCrash`.
+  It also disables the user and system `ReportCrash` services because no-Metal
+  simulator extensions can otherwise crash-loop and saturate a CPU. Existing
+  `.ips` reports remain intact. Restore them with
+  `launchctl enable gui/$(id -u)/com.apple.ReportCrash` and
+  `sudo launchctl enable system/com.apple.ReportCrash.Root`.
+  For devices that are already booted, the script also disables the simulator's
+  own `diagnosticd`, which otherwise repeatedly processes those extension
+  failures. Re-enable it inside a booted device only when collecting Apple
+  diagnostics is more important than interactive responsiveness.
 
 ## CI
 

@@ -98,6 +98,8 @@ assert "HYPERV_WINDOWSERVER_RECOVERY" in simulator_control
 
 tuning = (root / "guest/tune-no-metal-macos.sh").read_text()
 assert "com.apple.ReportCrash" in tuning
+assert "com.apple.ReportCrash.Root" in tuning
+assert "com.apple.diagnosticd" in tuning
 assert "mediaanalysisd" in tuning
 
 for file in root.rglob("*"):
