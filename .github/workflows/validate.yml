@@ -132,9 +132,14 @@ jobs:
         working-directory: build/compose
         run: |
           source "$GITHUB_WORKSPACE/guest/raster-versions.env"
+          raster_repo="$HOME/.local/share/macos-hyperv-builder/raster-m2/repository"
+          skiko_dir="$raster_repo/org/jetbrains/skiko/skiko/$SKIKO_RASTER_VERSION"
+          test -f "$skiko_dir/skiko-$SKIKO_RASTER_VERSION.module"
+          test -f "$skiko_dir/skiko-$SKIKO_RASTER_VERSION.pom"
           mkdir -p "$RUNNER_TEMP/android-sdk-placeholder"
           ANDROIDX_PROJECTS=KMP \
           ANDROID_SDK_ROOT="$RUNNER_TEMP/android-sdk-placeholder" \
+          HYPERV_RASTER_REPOSITORY="$raster_repo" \
           SKIKO_VERSION="$SKIKO_RASTER_VERSION" \
           ./gradlew \
             --init-script "$GITHUB_WORKSPACE/guest/hyperv-compose-raster.init.gradle" \

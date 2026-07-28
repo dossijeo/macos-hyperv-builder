@@ -87,6 +87,8 @@ gradle_init = (root / "guest/hyperv-compose-raster.init.gradle").read_text()
 assert "exclusiveContent" in gradle_init
 assert 'includeModule("org.jetbrains.compose.ui", "ui-uikitx64")' in gradle_init
 assert 'includeGroup("org.jetbrains.skiko")' in gradle_init
+assert 'System.getenv("HYPERV_RASTER_REPOSITORY")' in gradle_init
+assert "gradle.beforeProject" in gradle_init
 
 simulator_control = (root / "guest/hyperv-simulator.sh").read_text()
 assert "xcrun simctl bootstatus" in simulator_control
