@@ -11,6 +11,14 @@ launchctl bootout \
     /System/Library/LaunchAgents/com.apple.mediaanalysisd.plist \
     2>/dev/null || true
 
+# Simulator wallpaper and accessibility extensions can crash repeatedly when
+# Metal is unavailable. ReportCrash may then consume an entire CPU indefinitely.
+# This optional tuning script favors VM responsiveness; existing .ips reports
+# remain available and the agent can be restored with launchctl enable.
+launchctl disable "${user_domain}/com.apple.ReportCrash" 2>/dev/null || true
+launchctl bootout "${user_domain}/com.apple.ReportCrash" 2>/dev/null || true
+pkill -9 -f '[/]ReportCrash agent' 2>/dev/null || true
+
 while IFS= read -r udid; do
     [[ -n "${udid}" ]] || continue
     xcrun simctl spawn "${udid}" \
@@ -28,5 +36,5 @@ done < <(
         '
 )
 
-echo "Disabled mediaanalysisd for the host user and currently booted simulators."
+echo "Disabled mediaanalysisd and the per-user crash reporter."
 echo "Use a static desktop wallpaper manually; animated Aerial wallpaper is CPU-heavy without Metal."

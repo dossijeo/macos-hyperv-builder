@@ -96,6 +96,10 @@ assert "CoreSimulator.CoreSimulatorService" in simulator_control
 assert "[S]imulatorTrampoline" in simulator_control
 assert "HYPERV_WINDOWSERVER_RECOVERY" in simulator_control
 
+tuning = (root / "guest/tune-no-metal-macos.sh").read_text()
+assert "com.apple.ReportCrash" in tuning
+assert "mediaanalysisd" in tuning
+
 for file in root.rglob("*"):
     if not file.is_file() or ".git" in file.parts:
         continue
