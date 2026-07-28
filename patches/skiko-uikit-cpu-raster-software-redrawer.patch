@@ -1,0 +1,167 @@
+diff --git a/skiko/src/uikitMain/kotlin/org/jetbrains/skiko/redrawer/SoftwareRedrawer.uikit.kt b/skiko/src/uikitMain/kotlin/org/jetbrains/skiko/redrawer/SoftwareRedrawer.uikit.kt
+new file mode 100644
+index 0000000..9e70199
+--- /dev/null
++++ b/skiko/src/uikitMain/kotlin/org/jetbrains/skiko/redrawer/SoftwareRedrawer.uikit.kt
+@@ -0,0 +1,161 @@
++/*
++ * Copyright 2026
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++@file:OptIn(BetaInteropApi::class)
++
++package org.jetbrains.skiko.redrawer
++
++import kotlinx.cinterop.*
++import org.jetbrains.skia.Color
++import org.jetbrains.skia.Surface
++import org.jetbrains.skia.impl.use
++import org.jetbrains.skiko.Logger
++import platform.Foundation.NSData
++import platform.Foundation.NSRunLoop
++import platform.Foundation.NSSelectorFromString
++import platform.Foundation.dataWithBytes
++import platform.QuartzCore.CADisplayLink
++import platform.QuartzCore.CALayer
++import platform.QuartzCore.CATransaction
++import platform.UIKit.UIImage
++import platform.darwin.*
++import kotlin.math.roundToInt
++
++/**
++ * CPU raster presentation path for UIKit environments without a Metal device.
++ *
++ * Compose still records its normal Skia drawing commands. Skia executes them
++ * into a raster surface, which is encoded and handed to Core Animation as a
++ * CGImage. The encoded hand-off deliberately favours correctness and a small
++ * compatibility surface over frame rate; a direct shared pixel buffer can
++ * replace it once this fallback is proven on the Hyper-V framebuffer.
++ */
++internal class SoftwareRedrawer(
++    private val targetLayer: CALayer,
++    private val drawCallback: (Surface) -> Unit,
++    addDisplayLinkToRunLoop: ((CADisplayLink) -> Unit)? = null,
++) {
++    private var needsRedraw = true
++
++    internal var caDisplayLink: CADisplayLink? = CADisplayLink.displayLinkWithTarget(
++        target = SoftwareDisplayLinkProxy {
++            handleDisplayLinkTick()
++        },
++        selector = NSSelectorFromString(SoftwareDisplayLinkProxy::handleDisplayLinkTick.name)
++    )
++
++    internal var maximumFramesPerSecond: NSInteger
++        get() = caDisplayLink?.preferredFramesPerSecond ?: 0
++        set(value) {
++            caDisplayLink?.preferredFramesPerSecond = value
++        }
++
++    init {
++        val displayLink = checkNotNull(caDisplayLink) {
++            "CADisplayLink is null during SoftwareRedrawer initialization"
++        }
++        if (addDisplayLinkToRunLoop == null) {
++            displayLink.addToRunLoop(NSRunLoop.mainRunLoop, NSRunLoop.mainRunLoop.currentMode)
++        } else {
++            addDisplayLinkToRunLoop(displayLink)
++        }
++        displayLink.paused = false
++    }
++
++    internal fun dispose() {
++        check(caDisplayLink != null) {
++            "SoftwareRedrawer.dispose() was called more than once"
++        }
++        caDisplayLink?.invalidate()
++        caDisplayLink = null
++        targetLayer.contents = null
++    }
++
++    internal fun needRender() {
++        needsRedraw = true
++        caDisplayLink?.paused = false
++    }
++
++    private fun handleDisplayLinkTick() {
++        if (!needsRedraw) {
++            caDisplayLink?.paused = true
++            return
++        }
++
++        needsRedraw = false
++        draw()
++
++        if (!needsRedraw) {
++            caDisplayLink?.paused = true
++        }
++    }
++
++    private fun draw() {
++        autoreleasepool {
++            val scale = targetLayer.contentsScale.coerceAtLeast(1.0)
++            val (width, height) = targetLayer.bounds.useContents {
++                (size.width * scale).roundToInt() to
++                    (size.height * scale).roundToInt()
++            }
++            if (width <= 0 || height <= 0) {
++                return@autoreleasepool
++            }
++
++            Surface.makeRasterN32Premul(width, height).use surfaceUse@ { surface ->
++                surface.canvas.clear(Color.TRANSPARENT)
++                drawCallback(surface)
++
++                val encoded = surface.makeImageSnapshot().use imageUse@ { image ->
++                    image.encodeToData()
++                }
++                if (encoded == null) {
++                    Logger.warn { "SoftwareRedrawer could not encode the raster surface" }
++                    return@surfaceUse
++                }
++
++                encoded.use dataUse@ { data ->
++                    val bytes = data.bytes
++                    val nsData = bytes.usePinned { pinned ->
++                        NSData.dataWithBytes(
++                            pinned.addressOf(0),
++                            bytes.size.toULong()
++                        )
++                    }
++                    val image = UIImage(data = nsData)
++                    if (image?.CGImage == null) {
++                        Logger.warn { "SoftwareRedrawer could not decode the raster frame" }
++                        return@dataUse
++                    }
++
++                    CATransaction.begin()
++                    CATransaction.setDisableActions(true)
++                    targetLayer.contentsScale = scale
++                    targetLayer.contents = image.CGImage
++                    CATransaction.commit()
++                }
++            }
++        }
++    }
++}
++
++private class SoftwareDisplayLinkProxy(
++    private val callback: () -> Unit
++) : NSObject() {
++    @ObjCAction
++    fun handleDisplayLinkTick() {
++        callback()
++    }
++}

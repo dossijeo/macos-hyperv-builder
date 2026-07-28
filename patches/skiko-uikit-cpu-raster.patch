@@ -1,0 +1,111 @@
+diff --git a/skiko/buildSrc/build.gradle.kts b/skiko/buildSrc/build.gradle.kts
+index c44f858..90235f8 100644
+--- a/skiko/buildSrc/build.gradle.kts
++++ b/skiko/buildSrc/build.gradle.kts
+@@ -8,8 +8,6 @@ dependencies {
+     implementation(kotlin("gradle-plugin", libs.versions.kotlin.get()))
+     implementation(libs.android.gradlePlugin)
+     implementation(libs.dokka.gradlePlugin)
+-    implementation(libs.buildHelpers.publishing.gradlePlugin)
+-
+     implementation(libs.gradleDownloadTask.gradlePlugin)
+     implementation(libs.githubApi)
+     implementation(libs.crypto.checksum.gradlePlugin)
+diff --git a/skiko/settings.gradle.kts b/skiko/settings.gradle.kts
+index 066d8a7..0d31ad9 100644
+--- a/skiko/settings.gradle.kts
++++ b/skiko/settings.gradle.kts
+@@ -14,5 +14,4 @@ pluginManagement {
+     }
+ }
+ rootProject.name = "skiko"
+-include("ci")
+ include("import-generator")
+diff --git a/skiko/src/uikitMain/kotlin/org/jetbrains/skiko/SkiaLayer.uikit.kt b/skiko/src/uikitMain/kotlin/org/jetbrains/skiko/SkiaLayer.uikit.kt
+index 2b6d680..c0516d4 100644
+--- a/skiko/src/uikitMain/kotlin/org/jetbrains/skiko/SkiaLayer.uikit.kt
++++ b/skiko/src/uikitMain/kotlin/org/jetbrains/skiko/SkiaLayer.uikit.kt
+@@ -9,7 +9,7 @@ actual open class SkiaLayer {
+     internal var needRedrawCallback: () -> Unit = {}
+
+     actual var renderApi: GraphicsApi
+-        get() = GraphicsApi.METAL
++        get() = GraphicsApi.SOFTWARE_FAST
+         set(_) { throw UnsupportedOperationException() }
+
+     actual val contentScale: Float
+diff --git a/skiko/src/uikitMain/kotlin/org/jetbrains/skiko/SkikoUIView.kt b/skiko/src/uikitMain/kotlin/org/jetbrains/skiko/SkikoUIView.kt
+index c95ce7a..b1a1726 100644
+--- a/skiko/src/uikitMain/kotlin/org/jetbrains/skiko/SkikoUIView.kt
++++ b/skiko/src/uikitMain/kotlin/org/jetbrains/skiko/SkikoUIView.kt
+@@ -6,7 +6,6 @@ import kotlinx.cinterop.*
+ import org.jetbrains.skiko.redrawer.*
+ import platform.CoreGraphics.*
+ import platform.Foundation.*
+-import platform.Metal.*
+ import platform.QuartzCore.*
+ import platform.UIKit.*
+ import kotlin.native.ref.*
+@@ -16,7 +15,7 @@ internal expect fun UIView.skikoInitializeUIView(): Unit
+ @ExportObjCClass
+ class SkikoUIView : UIView {
+     companion object : UIViewMeta() {
+-        override fun layerClass() = CAMetalLayer
++        override fun layerClass() = CALayer
+     }
+
+     @Suppress("UNUSED") // required by Objective-C runtime
+@@ -25,28 +24,12 @@ class SkikoUIView : UIView {
+         throw UnsupportedOperationException("init(coder: NSCoder) is not supported for SkikoUIView")
+     }
+
+-    private val _device: MTLDeviceProtocol =
+-        MTLCreateSystemDefaultDevice() ?: throw IllegalStateException("Metal is not supported on this system")
+-    private val _metalLayer: CAMetalLayer get() = layer as CAMetalLayer
+     private var _skiaLayer: SkiaLayer? = null
+-    private lateinit var _redrawer: MetalRedrawer
++    private lateinit var _redrawer: SoftwareRedrawer
+
+     init {
+         skikoInitializeUIView()
+         opaque = false // For UIKit interop through a "Hole"
+-
+-        _metalLayer.also {
+-            // Workaround for KN compiler bug
+-            // Type mismatch: inferred type is platform.Metal.MTLDeviceProtocol but objcnames.protocols.MTLDeviceProtocol? was expected
+-            @Suppress("USELESS_CAST")
+-            it.device = _device as objcnames.protocols.MTLDeviceProtocol?
+-
+-            it.pixelFormat = MTLPixelFormatBGRA8Unorm
+-            doubleArrayOf(0.0, 0.0, 0.0, 0.0).usePinned { pinned ->
+-                it.backgroundColor = CGColorCreate(CGColorSpaceCreateDeviceRGB(), pinned.addressOf(0))
+-            }
+-            it.framebufferOnly = false
+-        }
+     }
+
+     @OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+@@ -58,8 +41,8 @@ class SkikoUIView : UIView {
+
+         val weakSkiaLayer = WeakReference(skiaLayer)
+
+-        _redrawer = MetalRedrawer(
+-            _metalLayer,
++        _redrawer = SoftwareRedrawer(
++            layer,
+             drawCallback = { surface ->
+                 weakSkiaLayer.get()?.draw(surface)
+             }
+@@ -89,11 +72,6 @@ class SkikoUIView : UIView {
+
+     override fun layoutSubviews() {
+         super.layoutSubviews()
+-
+-        val scaledSize = bounds.useContents {
+-            CGSizeMake(size.width * contentScaleFactor, size.height * contentScaleFactor)
+-        }
+-
+-        _metalLayer.drawableSize = scaledSize
++        _redrawer.needRender()
+     }
+ }

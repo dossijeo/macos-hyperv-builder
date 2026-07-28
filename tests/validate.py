@@ -3,7 +3,6 @@ import json
 import pathlib
 import plistlib
 import re
-import sys
 
 root = pathlib.Path(__file__).resolve().parents[1]
 manifest = json.loads((root / "manifests/tahoe-26.json").read_text())
@@ -49,6 +48,45 @@ assert plist["Label"] == "fish.goldfish64.hvshutdownd"
 assert plist["ProgramArguments"] == [
     "/Library/Application Support/MacHyperVSupport/hvshutdownd"
 ]
+
+raster_versions = {}
+for line in (root / "guest/raster-versions.env").read_text().splitlines():
+    if line and not line.startswith("#"):
+        key, value = line.split("=", 1)
+        raster_versions[key] = value
+assert raster_versions["COMPOSE_VERSION"] == "1.10.0"
+assert re.fullmatch(r"[0-9a-f]{40}", raster_versions["COMPOSE_COMMIT"])
+assert re.fullmatch(r"[0-9a-f]{40}", raster_versions["SKIKO_COMMIT"])
+assert raster_versions["SKIKO_RASTER_VERSION"].endswith(
+    "-hyperv-raster.1-SNAPSHOT"
+)
+assert re.fullmatch(r"[0-9a-f]{64}", raster_versions["TEMURIN_SHA256"])
+assert raster_versions["TEMURIN_URL"].startswith(
+    "https://github.com/adoptium/temurin17-binaries/releases/"
+)
+
+raster_patch = (
+    root / "patches/compose-1.10.0-uikit-cpu-raster.patch"
+).read_text()
+for expected in (
+    "Surface.makeRasterDirect",
+    "CGBitmapContextCreateImage",
+    "interpretObjCPointer<Any>(cgImage.rawValue)",
+    "redrawer.setNeedsRedraw()",
+):
+    assert expected in raster_patch
+
+for patch_name in (
+    "skiko-uikit-cpu-raster.patch",
+    "skiko-uikit-cpu-raster-software-redrawer.patch",
+    "skiko-uikit-cpu-raster-build-helper.patch",
+):
+    assert (root / "patches" / patch_name).is_file()
+
+gradle_init = (root / "guest/hyperv-compose-raster.init.gradle").read_text()
+assert "exclusiveContent" in gradle_init
+assert 'includeModule("org.jetbrains.compose.ui", "ui-uikitx64")' in gradle_init
+assert 'includeGroup("org.jetbrains.skiko")' in gradle_init
 
 for file in root.rglob("*"):
     if not file.is_file() or ".git" in file.parts:

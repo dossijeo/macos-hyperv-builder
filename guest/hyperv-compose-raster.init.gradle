@@ -1,0 +1,42 @@
+// Select the locally built Compose UIKit artifact only for the modules that
+// contain the patched renderer. All other dependencies still come from the
+// repositories declared by the consuming project.
+def rasterRepository = new File(
+    System.getProperty("user.home"),
+    ".local/share/macos-hyperv-builder/raster-m2/repository"
+)
+def hypervSkikoVersion = "0.9.37.3-hyperv-raster.1-SNAPSHOT"
+
+settingsEvaluated { settings ->
+    settings.dependencyResolutionManagement.repositories {
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = "hypervComposeUIKitRaster"
+                    url = uri(rasterRepository)
+                }
+            }
+            filter {
+                includeModule("org.jetbrains.compose.ui", "ui")
+                includeModule("org.jetbrains.compose.ui", "ui-uikitx64")
+                includeGroup("org.jetbrains.skiko")
+            }
+        }
+    }
+}
+
+allprojects {
+    configurations.configureEach {
+        resolutionStrategy.eachDependency { details ->
+            if (
+                details.requested.group == "org.jetbrains.skiko" &&
+                details.requested.version in ["0.9.37.3", hypervSkikoVersion]
+            ) {
+                details.useVersion(hypervSkikoVersion)
+                details.because(
+                    "Use the UIKit CPU-raster backend on a Hyper-V macOS guest"
+                )
+            }
+        }
+    }
+}
