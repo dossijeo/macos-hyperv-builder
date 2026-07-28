@@ -1,0 +1,63 @@
+// Select the locally built Compose UIKit artifact only for the modules that
+// contain the patched renderer. All other dependencies still come from the
+// repositories declared by the consuming project.
+def configuredRasterRepository = System.getenv("HYPERV_RASTER_REPOSITORY")
+def rasterRepository = configuredRasterRepository ?
+    new File(configuredRasterRepository) :
+    new File(
+        System.getProperty("user.home"),
+        ".local/share/macos-hyperv-builder/raster-m2/repository"
+    )
+def hypervSkikoVersion = "0.9.37.3-hyperv-raster.1-SNAPSHOT"
+
+def addRasterRepository = { repositoryHandler ->
+    repositoryHandler.exclusiveContent {
+        forRepository {
+            repositoryHandler.maven {
+                name = "hypervComposeUIKitRaster"
+                url = uri(rasterRepository)
+            }
+        }
+        filter {
+            includeModule("org.jetbrains.compose.ui", "ui")
+            includeModule("org.jetbrains.compose.ui", "ui-uikitx64")
+            includeGroup("org.jetbrains.skiko")
+        }
+    }
+}
+
+settingsEvaluated { settings ->
+    addRasterRepository(settings.dependencyResolutionManagement.repositories)
+}
+
+// AndroidX/Compose declares repositories directly on projects. Install the
+// local source before each project is evaluated. Do not use exclusiveContent
+// here: AndroidX shares content descriptors between projects and Gradle rejects
+// mutating those descriptors after buildSrc has already resolved dependencies.
+gradle.beforeProject { project ->
+    project.repositories.maven {
+        name = "hypervComposeUIKitRasterProject"
+        url = uri(rasterRepository)
+        content {
+            includeModule("org.jetbrains.compose.ui", "ui")
+            includeModule("org.jetbrains.compose.ui", "ui-uikitx64")
+            includeGroup("org.jetbrains.skiko")
+        }
+    }
+}
+
+allprojects {
+    configurations.configureEach {
+        resolutionStrategy.eachDependency { details ->
+            if (
+                details.requested.group == "org.jetbrains.skiko" &&
+                details.requested.version in ["0.9.37.3", hypervSkikoVersion]
+            ) {
+                details.useVersion(hypervSkikoVersion)
+                details.because(
+                    "Use the UIKit CPU-raster backend on a Hyper-V macOS guest"
+                )
+            }
+        }
+    }
+}

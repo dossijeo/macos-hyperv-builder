@@ -16,6 +16,15 @@ $cache = Join-Path $PSScriptRoot '.cache'
 $state = Join-Path $PSScriptRoot 'state'
 New-Item -ItemType Directory -Force -Path $OutputDirectory,$state | Out-Null
 
+$guestTools = Join-Path $OutputDirectory 'guest-tools'
+New-Item -ItemType Directory -Force -Path $guestTools | Out-Null
+Copy-Item -Path (Join-Path $PSScriptRoot 'guest\*') `
+    -Destination $guestTools -Recurse -Force
+$guestPatches = Join-Path $guestTools 'patches'
+New-Item -ItemType Directory -Force -Path $guestPatches | Out-Null
+Copy-Item -Path (Join-Path $PSScriptRoot 'patches\*cpu-raster*.patch') `
+    -Destination $guestPatches -Force
+
 $dependencies = @(
     & (Join-Path $PSScriptRoot 'scripts\Get-Dependencies.ps1') `
         -Manifest $Manifest -Destination $cache
@@ -131,5 +140,6 @@ if ($CreateVM) {
     UefiTree = $efiTree
     UefiVhdx = $uefiVhdx
     Recovery = $recovery
+    GuestTools = $guestTools
     Status = if ($CreateVM) { 'Hyper-V VM created.' } else { 'EFI staged and validated.' }
 } | Format-List

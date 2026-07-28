@@ -37,6 +37,9 @@ jobs:
       - name: Verify pinned upstream archives
         shell: pwsh
         run: ./scripts/Get-Dependencies.ps1
+      - name: Parse guest shell scripts
+        shell: bash
+        run: bash -n guest/*.sh
 
   patched-driver:
     runs-on: macos-latest
@@ -69,3 +72,87 @@ jobs:
         with:
           name: tahoe-hyperv-kexts
           path: build/MacHyperVSupport/patched-*.zip
+
+  compose-uikit-cpu-raster:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Checkout pinned Compose Multiplatform Core
+        run: |
+          source guest/raster-versions.env
+          git clone --filter=blob:none https://github.com/JetBrains/compose-multiplatform-core.git build/compose
+          git -C build/compose fetch --depth=1 origin "$COMPOSE_COMMIT"
+          git -C build/compose checkout --detach "$COMPOSE_COMMIT"
+          git clone --filter=blob:none https://github.com/JetBrains/skiko.git build/skiko
+          git -C build/skiko fetch --depth=1 origin "$SKIKO_COMMIT"
+          git -C build/skiko checkout --detach "$SKIKO_COMMIT"
+      - name: Apply and compile UIKit CPU-raster Skiko
+        run: |
+          source guest/raster-versions.env
+          for patch in \
+            patches/skiko-uikit-cpu-raster.patch \
+            patches/skiko-uikit-cpu-raster-software-redrawer.patch \
+            patches/skiko-uikit-cpu-raster-build-helper.patch
+          do
+            git -C build/skiko apply --check "$GITHUB_WORKSPACE/$patch"
+            git -C build/skiko apply "$GITHUB_WORKSPACE/$patch"
+          done
+          raster_repo="$HOME/.local/share/macos-hyperv-builder/raster-m2/repository"
+          deploy_version="${SKIKO_RASTER_VERSION%-SNAPSHOT}"
+          (
+            cd build/skiko/skiko
+            ./gradlew \
+              publishIosX64PublicationToMavenLocal \
+              publishKotlinMultiplatformPublicationToMavenLocal \
+              -Pdeploy.version="$deploy_version" \
+              -Pskiko.awt.enabled=false \
+              -Pskiko.js.enabled=false \
+              -Pskiko.wasm.enabled=false \
+              -Pskiko.android.enabled=false \
+              -Pskiko.native.enabled=false \
+              -Pskiko.native.linux.enabled=false \
+              -Pskiko.native.mac.enabled=false \
+              -Pskiko.native.ios.enabled=false \
+              -Pskiko.native.ios.arm64.enabled=false \
+              -Pskiko.native.ios.simulatorArm64.enabled=false \
+              -Pskiko.native.ios.x64.enabled=true \
+              --console=plain
+          )
+          # GitHub's Gradle/Maven environment ignores maven.repo.local for
+          # PublishToMavenLocal. Copy only the two required publications from
+          # the standard local repository into the isolated raster repository.
+          for artifact in skiko skiko-iosx64
+          do
+            source_dir="$HOME/.m2/repository/org/jetbrains/skiko/$artifact/$SKIKO_RASTER_VERSION"
+            target_dir="$raster_repo/org/jetbrains/skiko/$artifact/$SKIKO_RASTER_VERSION"
+            test -d "$source_dir"
+            mkdir -p "$target_dir"
+            cp -R "$source_dir/." "$target_dir/"
+          done
+      - name: Apply UIKit CPU-raster patch
+        run: |
+          git -C build/compose apply --check \
+            "$GITHUB_WORKSPACE/patches/compose-1.10.0-uikit-cpu-raster.patch"
+          git -C build/compose apply \
+            "$GITHUB_WORKSPACE/patches/compose-1.10.0-uikit-cpu-raster.patch"
+      - name: Compile patched iOS x64 Compose UI
+        working-directory: build/compose
+        run: |
+          source "$GITHUB_WORKSPACE/guest/raster-versions.env"
+          raster_repo="$HOME/.local/share/macos-hyperv-builder/raster-m2/repository"
+          skiko_dir="$raster_repo/org/jetbrains/skiko/skiko/$SKIKO_RASTER_VERSION"
+          test -f "$skiko_dir/skiko-$SKIKO_RASTER_VERSION.module"
+          test -f "$skiko_dir/skiko-$SKIKO_RASTER_VERSION.pom"
+          mkdir -p "$RUNNER_TEMP/android-sdk-placeholder"
+          ANDROIDX_PROJECTS=KMP \
+          ANDROID_SDK_ROOT="$RUNNER_TEMP/android-sdk-placeholder" \
+          HYPERV_RASTER_REPOSITORY="$raster_repo" \
+          SKIKO_VERSION="$SKIKO_RASTER_VERSION" \
+          ./gradlew \
+            --init-script "$GITHUB_WORKSPACE/guest/hyperv-compose-raster.init.gradle" \
+            :compose:ui:ui:compileKotlinUikitX64 \
+            --console=plain
