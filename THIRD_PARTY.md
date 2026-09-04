@@ -12,6 +12,9 @@ The builder downloads, but does not vendor:
 - [Skiko](https://github.com/JetBrains/skiko), Apache-2.0.
 - [Eclipse Temurin](https://github.com/adoptium/temurin17-binaries),
   GPL-2.0 with the Classpath Exception.
+- [BlackHole](https://github.com/ExistentialAudio/BlackHole), GPL-3.0. The
+  optional audio installer downloads the official package; it is not vendored
+  or redistributed by this repository.
 
 The Tahoe compatibility patch in this repository modifies
 MacHyperVSupport-derived source and is distributed under the same

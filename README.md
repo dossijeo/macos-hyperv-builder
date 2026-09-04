@@ -31,6 +31,8 @@ virtual disk, Apple credential, SSH key or reusable SMBIOS identity.
   `CALayer`.
 - Guest provisioning for the JDK, Xcode iOS runtime, local patched artifacts,
   automatic Gradle selection and no-Metal performance tuning.
+- A source-built CoreAudio-to-UDP bridge, BlackHole installer and hidden
+  Windows receiver that provide guest audio through the host speakers.
 
 ## Current automation boundary
 
@@ -46,7 +48,8 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 Generated material is written to ignored `state/`, `.cache/` and `artifacts/`
 directories. A self-contained copy of the macOS provisioning tools and their
-source patches is staged in `artifacts/guest-tools/`.
+source patches is staged in `artifacts/guest-tools/`. Audio bridge sources and
+installers are staged in `artifacts/audio-tools/`.
 
 The first boot enters Apple Recovery. Disk formatting, the Apple installer
 screens and their reboots remain guided because Hyper-V VMConnect does not
@@ -57,6 +60,94 @@ Xcode itself is not redistributed or downloaded by the Windows builder.
 Install Xcode from Apple, then copy `artifacts/guest-tools/` into the guest and
 run the provisioning described below. Apple authentication and acceptance of
 the Xcode licence cannot be made part of a public, credential-free image.
+
+## Audio through the Windows host
+
+Basic Hyper-V VMConnect does not expose a usable audio device to a macOS
+guest. Hyper-V normally redirects sound as part of Enhanced Session Mode, but
+that path depends on a supported guest integration/RDP stack that macOS does
+not provide. The optional bridge in `audio/` supplies output audio without
+modifying Apple audio drivers:
+
+1. the checksum-pinned official BlackHole 2ch package creates a 48 kHz stereo
+   CoreAudio loopback device;
+2. `HyperV Audio Bridge.app`, compiled locally from the committed C source,
+   captures that device through `AudioQueue`;
+3. raw signed 16-bit stereo PCM is sent over UDP to a private host address;
+4. a hidden `ffplay` receiver plays it through the Windows default output.
+
+No executable or third-party package is committed. The installer downloads
+BlackHole 2ch 0.7.1 from its publisher and refuses it unless SHA-256 equals
+`57b540f27a3e29c37e310e01bee0fdfab76733087e47f997ef9dccf851400dcf`.
+
+### One-command installation
+
+Install FFmpeg on Windows first and ensure `ffplay.exe` is on `PATH` or at
+`C:\ffmpeg\bin\ffplay.exe`. Open PowerShell in the repository and run,
+substituting the addresses and SSH key for the deployment. An elevated shell
+is recommended so the installer can create its private-network firewall rule:
+
+```powershell
+.\audio\Install-HyperVAudio.ps1 `
+  -GuestAddress 192.0.2.20 `
+  -GuestUser macuser `
+  -HostAddress 192.0.2.1 `
+  -SshKey "$env:USERPROFILE\.ssh\macos_hyperv_ed25519"
+```
+
+`GuestAddress` is the macOS VM address. `HostAddress` is the Windows address
+reachable from that VM, normally the address assigned to the Hyper-V virtual
+switch. The orchestration script:
+
+- installs and starts the Windows receiver and, when elevated, creates a
+  private-network UDP firewall rule;
+- adds a hidden per-user startup shortcut for the receiver;
+- copies the source installer into macOS over SSH;
+- verifies and installs BlackHole, compiles and ad-hoc signs the bridge app;
+- adds a per-user LaunchAgent and starts the app through LaunchServices.
+
+Tahoe will request microphone access for **HyperV Audio Bridge** the first
+time it captures BlackHole. Accept that one prompt and return to the SSH
+session to finish. This consent cannot and should not be bypassed by the
+installer. A macOS restart is recommended after BlackHole is installed for
+the first time. Both desktop users must subsequently be logged in: the macOS
+LaunchAgent and Windows startup receiver are deliberately per-user.
+
+The stream is unencrypted PCM and has no authentication. Restrict it to a
+trusted/private Hyper-V network; the Windows installer limits its firewall
+rule to the Private profile. The default UDP port is 4010 and can be changed
+with `-Port`.
+
+### Manual installation and removal
+
+The two halves can be installed separately:
+
+```powershell
+.\audio\windows\Install-HyperVAudioReceiver.ps1 -Port 4010
+```
+
+```bash
+cd ~/macos-hyperv-audio-installer
+chmod +x install.sh uninstall.sh
+./install.sh 192.0.2.1 4010
+```
+
+Remove the components with:
+
+```powershell
+.\audio\windows\Uninstall-HyperVAudioReceiver.ps1 -Port 4010
+```
+
+```bash
+./uninstall.sh
+# Also remove BlackHole when no other software uses it:
+./uninstall.sh --remove-blackhole
+```
+
+This bridge currently provides output only. It follows the Windows default
+playback device, adds a small network/playback latency and is intended for a
+single trusted listener. Changing the default macOS output away from
+BlackHole makes the stream silent.
 
 ## iOS Simulator without Metal for Compose
 
