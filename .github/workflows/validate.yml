@@ -73,6 +73,31 @@ jobs:
           name: tahoe-hyperv-kexts
           path: build/MacHyperVSupport/patched-*.zip
 
+  audio-bridge:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate audio metadata and shell installers
+        run: |
+          plutil -lint audio/macos/Info.plist
+          plutil -lint audio/macos/com.dossijeo.hypervaudiobridge.plist.in
+          bash -n audio/macos/install.sh audio/macos/uninstall.sh
+      - name: Compile CoreAudio UDP bridge
+        run: |
+          xcrun clang -O2 -Wall -Wextra -Werror \
+            audio/macos/hyperv-audio-bridge.c \
+            -framework AudioToolbox -framework CoreFoundation \
+            -o "$RUNNER_TEMP/HyperVAudioBridge"
+          test -x "$RUNNER_TEMP/HyperVAudioBridge"
+      - name: Verify official BlackHole package checksum
+        run: |
+          curl -LfsS \
+            https://existential.audio/downloads/BlackHole2ch-0.7.1.pkg \
+            -o "$RUNNER_TEMP/BlackHole2ch-0.7.1.pkg"
+          echo "57b540f27a3e29c37e310e01bee0fdfab76733087e47f997ef9dccf851400dcf  $RUNNER_TEMP/BlackHole2ch-0.7.1.pkg" \
+            | shasum -a 256 -c -
+          pkgutil --check-signature "$RUNNER_TEMP/BlackHole2ch-0.7.1.pkg"
+
   compose-uikit-cpu-raster:
     runs-on: macos-15-intel
     steps:

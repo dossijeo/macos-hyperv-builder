@@ -25,6 +25,11 @@ New-Item -ItemType Directory -Force -Path $guestPatches | Out-Null
 Copy-Item -Path (Join-Path $PSScriptRoot 'patches\*cpu-raster*.patch') `
     -Destination $guestPatches -Force
 
+$audioTools = Join-Path $OutputDirectory 'audio-tools'
+New-Item -ItemType Directory -Force -Path $audioTools | Out-Null
+Copy-Item -Path (Join-Path $PSScriptRoot 'audio\*') `
+    -Destination $audioTools -Recurse -Force
+
 $dependencies = @(
     & (Join-Path $PSScriptRoot 'scripts\Get-Dependencies.ps1') `
         -Manifest $Manifest -Destination $cache
@@ -141,5 +146,6 @@ if ($CreateVM) {
     UefiVhdx = $uefiVhdx
     Recovery = $recovery
     GuestTools = $guestTools
+    AudioTools = $audioTools
     Status = if ($CreateVM) { 'Hyper-V VM created.' } else { 'EFI staged and validated.' }
 } | Format-List

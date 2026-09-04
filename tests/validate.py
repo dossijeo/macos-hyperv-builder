@@ -104,10 +104,60 @@ assert "com.apple.ReportCrash.Root" in tuning
 assert "com.apple.diagnosticd" in tuning
 assert "mediaanalysisd" in tuning
 
+audio_source = (root / "audio/macos/hyperv-audio-bridge.c").read_text()
+for expected in (
+    "AudioQueueNewInput",
+    "kAudioFormatLinearPCM",
+    "format.mSampleRate = 48000.0",
+    "format.mChannelsPerFrame = 2",
+    "SOCK_DGRAM",
+):
+    assert expected in audio_source
+
+with (root / "audio/macos/Info.plist").open("rb") as stream:
+    audio_info = plistlib.load(stream)
+assert audio_info["CFBundleIdentifier"] == "com.dossijeo.hypervaudiobridge"
+assert audio_info["LSBackgroundOnly"] is True
+assert "NSMicrophoneUsageDescription" in audio_info
+
+with (root / "audio/macos/com.dossijeo.hypervaudiobridge.plist.in").open(
+    "rb"
+) as stream:
+    audio_agent = plistlib.load(stream)
+assert audio_agent["Label"] == "com.dossijeo.hypervaudiobridge"
+assert audio_agent["ProgramArguments"][:3] == ["/usr/bin/open", "-g", "-j"]
+assert "__HOST_ADDRESS__" in audio_agent["ProgramArguments"]
+
+audio_installer = (root / "audio/macos/install.sh").read_text()
+assert "BlackHole2ch-0.7.1.pkg" in audio_installer
+assert (
+    "57b540f27a3e29c37e310e01bee0fdfab76733087e47f997ef9dccf851400dcf"
+    in audio_installer
+)
+assert "codesign --force --sign -" in audio_installer
+assert "pkgutil --check-signature" in audio_installer
+assert "launchctl bootstrap" in audio_installer
+
+receiver = (root / "audio/windows/receiver.ps1").read_text()
+assert "-ch_layout stereo" in receiver
+assert "fifo_size=1000000" in receiver
+assert "MacHyperVAudioReceiver-$Port" in receiver
+
+host_installer = (root / "audio/windows/Install-HyperVAudioReceiver.ps1").read_text()
+assert "New-NetFirewallRule" in host_installer
+assert "Mac Hyper-V Audio Receiver.lnk" in host_installer
+
+orchestrator = (root / "audio/Install-HyperVAudio.ps1").read_text()
+assert "GuestAddress" in orchestrator
+assert "HostAddress" in orchestrator
+assert "scp @sshOptions" in orchestrator
+
 workflow = (root / ".github/workflows/validate.yml").read_text()
 assert '$HOME/.m2/repository/org/jetbrains/skiko/$artifact/' in workflow
 assert 'cp -R "$source_dir/." "$target_dir/"' in workflow
 assert 'deploy_version="${SKIKO_RASTER_VERSION%-SNAPSHOT}"' in workflow
+assert "Compile CoreAudio UDP bridge" in workflow
+assert "BlackHole2ch-0.7.1.pkg" in workflow
 
 provision = (root / "guest/provision-compose-ios-raster.sh").read_text()
 assert 'local deploy_version="${SKIKO_RASTER_VERSION%-SNAPSHOT}"' in provision
